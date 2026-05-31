@@ -94,7 +94,7 @@ jobs:
 
   # ── Job 2: Full regression — cross-browser ──────────────────────────────────
   test-regression:
-    name: Regression Tests — ${{ matrix.browser }}
+    name: Regression Tests — chromium
     runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: test-smoke
