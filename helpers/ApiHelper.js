@@ -17,13 +17,14 @@ class ApiHelper {
    */
   constructor(request) {
     this.request = request;
-    this.baseUrl = process.env.API_BASE_URL || 'https://dummyjson.com';
+    this.baseUrl = process.env.API_BASE_URL || 'https://reqres.in/api';
     this.defaultHeaders = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
     };
     if (process.env.API_KEY) {
-      this.defaultHeaders['Authorization'] = `Bearer ${process.env.API_KEY}`;
+      // ReqRes admin endpoints expect an API key in the `x-api-key` header
+      this.defaultHeaders['x-api-key'] = process.env.API_KEY;
     }
   }
 

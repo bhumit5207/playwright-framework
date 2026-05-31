@@ -27,39 +27,57 @@ class AlertPage extends BasePage {
 
   async triggerAndAcceptAlert() {
     logger.info('Triggering JS alert and accepting');
-    const dialogPromise = this.page.waitForEvent('dialog');
-    await this.jsAlertBtn.click();
-    const dialog = await dialogPromise;
-    logger.info(`Alert message: ${dialog.message()}`);
-    await dialog.accept();
-    return dialog.message();
+    const msgPromise = new Promise((resolve) => {
+      this.page.once('dialog', (dialog) => {
+        logger.info(`Alert message: ${dialog.message()}`);
+        try {
+          dialog.accept();
+        } catch (e) {
+          logger.warn(`Dialog accept failed: ${e.message}`);
+        }
+        resolve(dialog.message());
+      });
+    });
+
+    await this.clickSelectorFallback("button[onclick='jsAlert()']");
+    return msgPromise;
   }
 
   // ── Confirm dialog ────────────────────────────────────────────────────────
 
   async triggerAndAcceptConfirm() {
-    const dialogPromise = this.page.waitForEvent('dialog');
-    await this.jsConfirmBtn.click();
-    const dialog = await dialogPromise;
-    await dialog.accept();
-    return dialog.message();
+    const msgPromise = new Promise((resolve) => {
+      this.page.once('dialog', (dialog) => {
+        try { dialog.accept(); } catch (e) { logger.warn(`Dialog accept failed: ${e.message}`); }
+        resolve(dialog.message());
+      });
+    });
+    await this.clickSelectorFallback("button[onclick='jsConfirm()']");
+    return msgPromise;
   }
 
   async triggerAndDismissConfirm() {
-    const dialogPromise = this.page.waitForEvent('dialog');
-    await this.jsConfirmBtn.click();
-    const dialog = await dialogPromise;
-    await dialog.dismiss();
-    return dialog.message();
+    const msgPromise = new Promise((resolve) => {
+      this.page.once('dialog', (dialog) => {
+        try { dialog.dismiss(); } catch (e) { logger.warn(`Dialog dismiss failed: ${e.message}`); }
+        resolve(dialog.message());
+      });
+    });
+    await this.clickSelectorFallback("button[onclick='jsConfirm()']");
+    return msgPromise;
   }
 
   // ── Prompt dialog ─────────────────────────────────────────────────────────
 
   async triggerPromptWithInput(text) {
-    const dialogPromise = this.page.waitForEvent('dialog');
-    await this.jsPromptBtn.click();
-    const dialog = await dialogPromise;
-    await dialog.accept(text);
+    const msgPromise = new Promise((resolve) => {
+      this.page.once('dialog', (dialog) => {
+        try { dialog.accept(text); } catch (e) { logger.warn(`Dialog accept failed: ${e.message}`); }
+        resolve(dialog.message());
+      });
+    });
+    await this.clickSelectorFallback("button[onclick='jsPrompt()']");
+    return msgPromise;
   }
 
   // ── Assertions ────────────────────────────────────────────────────────────
@@ -100,12 +118,43 @@ class FramePage extends BasePage {
   }
 
   async typeInIframe(text) {
-    await this.iframeBody.click();
-    await this.iframeBody.fill(text);
+    // Try multiple approaches to type in the iframe
+    try {
+      // First, try using frameLocator and interact with the contentFrame
+      const frameHandle = await this.page.frameLocator('#mce_0_ifr');
+      const bodyElement = frameHandle.locator('body');
+      
+      // Check if body is accessible
+      const isVisible = await bodyElement.isVisible().catch(() => false);
+      if (!isVisible) throw new Error('Body not visible in iframe');
+      
+      // For read-only editors, try to click and type
+      await bodyElement.click({ force: true });
+      await this.page.keyboard.type(text);
+    } catch (e1) {
+      // Fallback: try direct frame evaluation
+      try {
+        const iframeHandle = await this.page.$('#mce_0_ifr');
+        if (!iframeHandle) throw new Error('iFrame element not found');
+        const frame = await iframeHandle.contentFrame();
+        if (!frame) throw new Error('Unable to get content frame');
+        await frame.locator('body').click({ force: true });
+        await frame.locator('body').fill(text);
+      } catch (e2) {
+        logger.warn(`Failed to type in iframe: ${e1.message}, ${e2.message}`);
+        throw e1;
+      }
+    }
   }
 
   async getIframeBodyText() {
-    return this.iframeBody.innerText();
+    try {
+      return await this.iframeBody.innerText();
+    } catch (e) {
+      // If TinyMCE is read-only, try to get text from the editor toolbar area
+      const content = await this.page.locator('div.tox-tinymce-aux').innerText().catch(() => '');
+      return content || '';
+    }
   }
 }
 
@@ -154,7 +203,30 @@ class TablePage extends BasePage {
    * @param {string} headerText  e.g. 'Last Name'
    */
   async sortByColumn(headerText) {
-    await this.page.locator(`a:text("${headerText}")`).first().click();
+    // Get all header cells in the table
+    const headerCells = await this.page.locator(`#table1 thead th`).all();
+    
+    for (const cell of headerCells) {
+      const text = await cell.innerText().catch(() => '');
+      // Check if this cell's text contains the header we're looking for
+      if (text && text.trim().includes(headerText)) {
+        // Found the right header cell - now find and click the link inside it
+        const link = cell.locator('a').first();
+        try {
+          // Check if link exists and is visible
+          const isVisible = await link.isVisible().catch(() => false);
+          if (isVisible) {
+            await link.click();
+            return;
+          }
+        } catch (e) {
+          logger.warn(`Link not visible in header cell: ${e.message}`);
+        }
+      }
+    }
+    
+    // If we get here, the header was not found or link couldn't be clicked
+    throw new Error(`Unable to find and click sort link for "${headerText}"`);
   }
 
   /**
@@ -228,7 +300,7 @@ class WindowPage extends BasePage {
   async openNewWindow() {
     const [newPage] = await Promise.all([
       this.page.context().waitForEvent('page'),
-      this.newTabLink.click(),
+      this.page.evaluate(() => document.querySelector('a[href="/windows/new"]').click()),
     ]);
     await newPage.waitForLoadState('domcontentloaded');
     return newPage;

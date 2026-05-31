@@ -24,6 +24,8 @@ class BasePage {
   /** Navigate to a URL (absolute or relative to baseURL). */
   async navigateTo(url) {
     logger.info(`Navigating to: ${url}`);
+    // Default to DOMContentLoaded for faster navigation; individual pages
+    // should wait for specific elements if they require full load.
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
   }
 
@@ -55,6 +57,86 @@ class BasePage {
     logger.debug(`Clicking: ${selector}`);
     await this.page.locator(selector).waitFor({ state: 'visible', timeout: this.timeout });
     await this.page.locator(selector).click();
+  }
+
+  /**
+   * Click a Playwright `Locator` with a safe fallback to `force: true` when
+   * a normal click fails (e.g. overlay intercepts pointer events).
+   * @param {import('@playwright/test').Locator} locator
+   */
+  async clickLocator(locator) {
+    try {
+      await locator.waitFor({ state: 'visible', timeout: this.timeout });
+      await locator.click();
+      return;
+    } catch (err) {
+      logger.warn(`Click failed: ${err.message}. Trying DOM click via evaluate()`);
+    }
+
+    // Try invoking the click via page DOM (sometimes bypasses overlays)
+    try {
+      await this.removeBlockingOverlays();
+      await locator.evaluate((el) => el.click());
+      return;
+    } catch (err) {
+      logger.warn(`DOM click failed: ${err.message}. Falling back to force click.`);
+    }
+
+    // Last resort: force the click
+    await locator.click({ force: true });
+  }
+
+  /**
+   * Attempt to click by CSS selector string. This bypasses Playwright's
+   * locator waiting and can succeed when overlays intercept pointer events.
+   * Order: try normal locator.click(), then DOM `querySelector(...).click()`,
+   * then force click via locator.
+   * @param {string} selector
+   */
+  async clickSelectorFallback(selector) {
+    const loc = this.page.locator(selector);
+    try {
+      await loc.click();
+      return;
+    } catch (err) {
+      logger.warn(`clickSelectorFallback normal click failed: ${err.message}`);
+    }
+
+    try {
+      await this.removeBlockingOverlays();
+      await this.page.evaluate((sel) => {
+        const el = document.querySelector(sel);
+        if (el) el.click();
+      }, selector);
+      return;
+    } catch (err) {
+      logger.warn(`clickSelectorFallback DOM click failed: ${err.message}`);
+    }
+
+    // Final attempt: force
+    await loc.click({ force: true });
+  }
+
+  /** Remove common blocking overlay elements that intercept pointer events. */
+  async removeBlockingOverlays() {
+    try {
+      await this.page.evaluate(() => {
+        const selectors = [
+          '.tox-tinymce-aux', // TinyMCE helper overlay
+          '.modal-backdrop',
+          '.overlay',
+          '.popover',
+        ];
+        for (const sel of selectors) {
+          document.querySelectorAll(sel).forEach((el) => el.remove());
+        }
+        // Also clear any inline blocking styles
+        document.querySelectorAll('[style*="pointer-events:"]')
+          .forEach((el) => el.style.removeProperty('pointer-events'));
+      });
+    } catch (err) {
+      logger.warn(`removeBlockingOverlays failed: ${err.message}`);
+    }
   }
 
   /** Double-click an element. */

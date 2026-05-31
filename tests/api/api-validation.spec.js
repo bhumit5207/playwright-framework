@@ -73,7 +73,7 @@ test.describe('API Validation Tests @api', () => {
 
     test('TC-API-07: POST create a new user returns 201 @smoke', async ({ apiHelper }) => {
       const newUser = { name: 'John Doe', job: 'QA Engineer' };
-      const { response, body } = await apiHelper.post('/users/add', newUser);
+      const { response, body } = await apiHelper.post('/users', newUser);
 
       apiHelper.assertStatusCode(response, 201);
       expect(body.name).toBe(newUser.name);

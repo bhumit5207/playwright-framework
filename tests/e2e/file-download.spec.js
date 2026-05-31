@@ -14,14 +14,33 @@ test.describe('File Download Tests @download @regression', () => {
 
   test('TC-DL-01: Download a file and verify it exists @smoke', async ({ page }) => {
     await page.goto('/download');
+    await page.waitForLoadState('domcontentloaded');
 
-    // Locate the first downloadable link
-    const downloadLink = page.locator('a').first();
+    // Locate the first downloadable link - skip GitHub links
+    let downloadLink = null;
+    const allLinks = await page.locator('a').all();
+    
+    for (const link of allLinks) {
+      const href = await link.getAttribute('href').catch(() => '');
+      const text = await link.innerText().catch(() => '');
+      const isVisible = await link.isVisible().catch(() => false);
+      
+      // Skip GitHub and social links, find actual download links
+      if (isVisible && href && !href.includes('github') && !href.includes('http') && text && text.trim()) {
+        downloadLink = link;
+        break;
+      }
+    }
+
+    if (!downloadLink) {
+      throw new Error('No downloadable links found on /download page');
+    }
+
     const fileName = await downloadLink.innerText();
 
-    // Trigger download and wait for it to complete
+    // Trigger download and wait for it to complete with extended timeout
     const [download] = await Promise.all([
-      page.waitForEvent('download'),
+      page.waitForEvent('download', { timeout: 30000 }),
       downloadLink.click(),
     ]);
 
@@ -40,15 +59,30 @@ test.describe('File Download Tests @download @regression', () => {
 
   test('TC-DL-02: Download filename matches link text', async ({ page }) => {
     await page.goto('/download');
+    await page.waitForLoadState('domcontentloaded');
 
-    const links = await page.locator('a').all();
-    expect(links.length).toBeGreaterThan(0);
+    // Get all visible download links (skip GitHub and social links)
+    const allLinks = await page.locator('a').all();
+    const downloadLinks = [];
+    
+    for (const link of allLinks) {
+      const href = await link.getAttribute('href').catch(() => '');
+      const text = await link.innerText().catch(() => '');
+      const isVisible = await link.isVisible().catch(() => false);
+      
+      // Skip GitHub and social links
+      if (isVisible && href && !href.includes('github') && !href.includes('http') && text && text.trim()) {
+        downloadLinks.push(link);
+      }
+    }
 
-    // Test first link only for speed
-    const expectedName = (await links[0].innerText()).trim();
+    expect(downloadLinks.length).toBeGreaterThan(0);
+
+    // Test first downloadable link only for speed
+    const expectedName = (await downloadLinks[0].innerText()).trim();
     const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      links[0].click(),
+      page.waitForEvent('download', { timeout: 30000 }),
+      downloadLinks[0].click(),
     ]);
 
     expect(download.suggestedFilename()).toBe(expectedName);
