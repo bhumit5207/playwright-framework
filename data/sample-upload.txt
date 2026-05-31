@@ -1,0 +1,4 @@
+This is a sample text file used for Playwright file upload tests.
+Framework: Playwright Automation Framework
+Author: QA Automation Team
+Date: 2025

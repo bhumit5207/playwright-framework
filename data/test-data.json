@@ -1,0 +1,47 @@
+{
+  "validUsers": [
+    {
+      "username": "tomsmith",
+      "password": "SuperSecretPassword!",
+      "role": "admin",
+      "description": "Valid credentials for the-internet.herokuapp.com"
+    }
+  ],
+  "invalidUsers": [
+    {
+      "username": "wronguser",
+      "password": "wrongpass",
+      "description": "Invalid username and password"
+    },
+    {
+      "username": "tomsmith",
+      "password": "wrongpass",
+      "description": "Valid username, invalid password"
+    },
+    {
+      "username": "",
+      "password": "",
+      "description": "Empty credentials"
+    }
+  ],
+  "dropdownOptions": [
+    { "value": "1", "label": "Option 1" },
+    { "value": "2", "label": "Option 2" }
+  ],
+  "fileUpload": {
+    "fileName": "sample-upload.txt",
+    "filePath": "data/sample-upload.txt",
+    "imageFile": "data/sample-image.png"
+  },
+  "alerts": {
+    "promptInput": "Hello Playwright!",
+    "expectedConfirmResult": "You clicked: Ok",
+    "expectedDismissResult": "You clicked: Cancel"
+  },
+  "tableData": {
+    "table1": {
+      "firstRowLastName": "Smith",
+      "firstRowFirstName": "John"
+    }
+  }
+}
