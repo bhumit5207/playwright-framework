@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.local
+test-results/
+reports/
+screenshots/
+videos/
+traces/
+downloads/
+playwright-report/
+allure-results/
+allure-report/
+helpers/auth-state.json
+*.log
+.DS_Store
