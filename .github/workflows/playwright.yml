@@ -76,12 +76,16 @@ jobs:
         env:
           CI: true
 
+      # (excerpt showing the changed upload paths)
       - name: Upload test report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: smoke-report-chromium
-          path: reports/html/
+          path: |
+            playwright-report/
+            reports/html/
+            reports/junit/
           retention-days: 7
 
       - name: Upload screenshots on failure
@@ -89,8 +93,43 @@ jobs:
         if: failure()
         with:
           name: smoke-screenshots
-          path: screenshots/
+          path: |
+            screenshots/
+            playwright-report/screenshots/
           retention-days: 3
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regression-report-${{ matrix.browser }}
+          path: |
+            playwright-report/
+            reports/html/
+            reports/junit/
+          retention-days: 14
+
+      - name: Upload videos and traces on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: failure-artifacts-${{ matrix.browser }}
+          path: |
+            screenshots/
+            videos/
+            traces/
+            playwright-report/
+          retention-days: 3
+
+      - name: Upload API test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-test-report
+          path: |
+            playwright-report/
+            reports/html/
+          retention-days: 7
 
   # ── Job 2: Full regression — cross-browser ──────────────────────────────────
   test-regression:
